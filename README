@@ -1,0 +1,2 @@
+This is related to a blog post about setting up your own Nuget Server for CI CD, it’s mostly for Powershell but probably would work for anything else too. 
+It should include the YAML build file and anything else I can think of to automate
