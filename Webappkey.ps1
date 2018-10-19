@@ -1,20 +1,5 @@
-$name = "NugetServer"
-$location = "westeurope"
-
-$app = New-AzureRmADApplication -DisplayName $name -IdentifierUris "https://$name.com" 
-
-$password =  [string](Get-Random -Minimum 1000000) + [string](Get-Random -Minimum 1000000)
-$securePassword = ConvertTo-SecureString -Force -AsPlainText -String $password
-
-
-$sp = New-AzureRmADServicePrincipal -ApplicationId $app.ApplicationId -Password $securePassword 
-
-Start-Sleep 20
-
-
-New-AzureRmRoleAssignment -RoleDefinitionName Owner -ServicePrincipalName $sp.ApplicationId -ResourceGroupName $name
-
 #https://www.sabin.io/blog/adding-an-azure-active-directory-application-and-key-using-powershell/
+
 
 function Create-AesManagedObject($key, $IV) {
 
@@ -46,7 +31,6 @@ function Create-AesManagedObject($key, $IV) {
 }
 
 
-
 function Create-AesKey() {
     $aesManaged = Create-AesManagedObject 
     $aesManaged.GenerateKey()
@@ -57,12 +41,30 @@ function Create-AesKey() {
 
 $keyValue = Create-AesKey
 
+ 
 
+I created the PSADPasswordCredential and populated it with start and end dates, a generated GUID, and my key value:
 
+$psadCredential = New-Object Microsoft.Azure.Commands.Resources.Models.ActiveDirectory.PSADPasswordCredential
 
-$appsecret = New-AzureRmADAppCredential -ApplicationId $sp.ApplicationId -Password (ConvertTo-SecureString ($keyValue) -AsPlainText -Force) -EndDate (Get-Date).AddMonths(12)
+$startDate = Get-Date
 
-"********
-copy this down , you need it later  it's the app secret key   >>    " + $keyValue
+$psadCredential.StartDate = $startDate
 
-"This is the application / service principal ID . copy this too >>  " +  $app.ApplicationId 
+$psadCredential.EndDate = $startDate.AddYears(1)
+
+$psadCredential.KeyId = [guid]::NewGuid()
+
+$psadCredential.Password = $KeyValue
+
+ 
+
+I created the application, including the PSADPasswordCredential object as the PasswordCredential parameter:
+
+New-AzureRmADApplication –DisplayName “MyNewApp2”`
+
+                         -HomePage $ApplicationURI `
+
+                         -IdentifierUris $ApplicationURI `
+
+                         -PasswordCredentials $psadCredential
