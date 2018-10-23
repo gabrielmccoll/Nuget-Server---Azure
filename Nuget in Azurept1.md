@@ -1,6 +1,5 @@
-# A Free Powershell Repository with CI CD
-### ...and I do most of the work for you (Part 1 of 3 - the Nuget Server and initial prep)
-
+# A Free Powershell Repository with CI CD in 9 steps!
+### ...and I do most of the work for you 
 
 That sounds like an emmy award winning blog right there !
 
@@ -11,8 +10,13 @@ Love.
  
  Okay it’s REALLY it was way more hassle than I expected for some bits of it so thought I’d write it down in case I forget about it.  Plus it’s a chance to automate some stuff.  
  
-# If all you want is a Nuget Server in Azure
-there’s a fair amount of other blogs for that.  Google away.  This is to do that, plus get in about some Azure Devops.
+# Why so many parts?
+Part 1 is enough to get a Nuget Server up in Azure deployed through Azure Devops
+Part 2 is making it a bit better with a bit of variable substitution and also using Azure Devops to package and publish modules to your new build server. 
+Part 3 doesn't exist yet but it'll probably be pretty unnecessary. 
+
+
+
  
  
 # On with the show
@@ -51,20 +55,12 @@ Part 1
 2. Create Service Principal, make Owner of Resource Group 
 3. Create Repo in Azure Devops  
 4. Create Service Endpoint for the Resource Group, using the Service Principal
+5. Clone Repo down in Visual Studio 2017
+6. Create Nuget Server in it
+7. Add an Api Key to Web.Config
+8. Create Build from Yaml
+9. Create Release pipeline > to  Azure Webapp with CI
 
-
-5. Create Yaml build - give sample yaml  
-6. Switch on CI
-7. Clone Repo down in Visual Studio 2017
-8. New Asp.net Empty 
-9. Add Nuget.Server package 
-10. Powershell  New-Guid 
-11. Use Guid as API key in webconfig 		//improve this 
-12. Commit and Sync
-13. Build should complete
-14. Create Release pipeline > to  Azure Webapp with CI
-15. Pick the Service Endpoint created in Azure Webapp settings.  
-16. Do Release ,  should now be up and running.
 
 
 The steps are arranged above in the most optimal way, what’ll I’ll try to do at the end of each step is just give a sum up of what we did for maximum understanding. If this is all easy stuff for you, just be smug. 
@@ -215,6 +211,113 @@ Click verify and you should green tick and go.
 
 ![](https://cloudconfusionsa.blob.core.windows.net/blogimages/Jekyll/NugetServer/IMG_0607.JPG)
 
+
+
+### 5. Clone the repo down into Visual studio 2017
+
+[Microsoft already wrote this if you don't know how to do it. I'm too lazy to do work twice](https://docs.microsoft.com/en-us/azure/devops/repos/git/clone?view=vsts&tabs=visual-studio)
+
+
+### 6. Create a Nuget Server in your cloned repo
+
+[Once again Microsoft has done this for me.](https://docs.microsoft.com/en-us/nuget/hosting-packages/nuget-server).
+Couple of pieces to note.
+Stop when you hit the "Configuring the Packages" part. Don't you fret about that!. 
+Just stop it right there.  Don't do the API part either. I'm going to go into a bit more detail for step 7.
+Extra pay attention to the Microsoft note marked *Important*. They're not messing around. The first time I did this, it didn't have that and it took me quite the time before I got it working properly. Get under my wing. 
+
+
+### 7. Add an Api Key to Web.Config, commit and push
+
+Unless you want to directly shove stuff into the Packages folder and then reploy your entire Nuget site everytime then you're going to want to have a way to push packages to it.
+You have 2 options. 
+1. Have no API Key and just let anyone who knows the URL push whatever they want to your site.
+2. Make an API key up and use that to authenticate. 
+
+Since we're not complete buffoons we're going for number 2 of course. (I flunked my second year of bufoon university. Poor juggling.. but that's a tale for another time).
+
+Here's how you do it.
+Open up the Nuget Server project in Visual Studio 2017. 
+Open up PowerShell. 
+Type New-Guid , get the guid and run over the Vs2017
+Paste it into the correct area of the web.config.
+
+Screens show what your should see pretty much.
+![new-guid](https://cloudconfusionsa.blob.core.windows.net/blogimages/Jekyll/NugetServer/new-huidell.png)
+
+![add the api-key](https://cloudconfusionsa.blob.core.windows.net/blogimages/Jekyll/NugetServer/api-key.png)
+
+Now commit and push up to Azure Devops. 
+
+That's us done in VS2017! Tick that off your bucket list.
+
+
+
+
+### 8. Create your yaml build 
+
+This part is relatively new as I write this,  yaml builds were only available after the rebrand to Azure Devops from Visual Studio Team Services.  This means you can simply create a new file in your repo called Azure-Pipelines.yml and refer the build to it and boom. Everything is set.   
+
+You’re still frightened though, coquettish, luckily here is one I created earlier !
+
+It’s located [here](https://github.com/gabrielmccoll/Nuget-Server---Azure) if you want to see it exactly as it should be used. 													
+
+The below is it spelled out for you. 
+
+I’m not going to explain the words. Here are some resources if you want to dig in later. 
+
+
+	queue:
+	  name: Hosted VS2017
+	  demands: 
+	  - msbuild
+	  - visualstudio
+	
+	variables:
+	  solution: '**/*.sln'
+	  buildPlatform: 'Any CPU'
+	  buildConfiguration: 'Release'
+	
+	steps:
+	- task: NuGetToolInstaller@0
+	
+	- task: NuGetCommand@2
+	  inputs:
+	    restoreSolution: '$(solution)'
+	
+	- task: VSBuild@1
+	  inputs:
+	    solution: '$(solution)'
+	    msbuildArgs: '/p:DeployOnBuild=true /p:WebPublishMethod=Package /p:PackageAsSingleFile=true /p:SkipInvalidConfigurations=true /p:PackageLocation="$(build.artifactStagingDirectory)"'
+	    platform: '$(buildPlatform)'
+	    configuration: '$(buildConfiguration)'
+	
+	- task: PublishSymbols@2
+	  displayName: 'Publish symbols path'
+	  inputs:
+	    SearchPattern: '**\bin\**\*.pdb'
+	
+	    PublishSymbols: false
+	
+	  continueOnError: true
+	
+	- task: PublishBuildArtifacts@1
+	  displayName: 'Publish Artifact: drop'
+	  inputs:
+	    PathtoPublish: '$(build.artifactstagingdirectory)'
+	    
+
+The official instructions are [here](https://docs.microsoft.com/en-us/azure/devops/pipelines/get-started-yaml?view=vsts) but if you’re in the site it’s pretty self explanatory.
+
+Go to Pipelines. Go to build. Click new. Point it at your Repo with the Nuget Server in it. 
+If it finds the Yaml automatically then BOOM, easy game, if not then just hunt it down using the GUI.
+
+See these here pictures I went and done you:
+
+![](https://cloudconfusionsa.blob.core.windows.net/blogimages/Jekyll/NugetServer/IMG_0608.JPG)
+
+
+![](https://cloudconfusionsa.blob.core.windows.net/blogimages/Jekyll/NugetServer/IMG_0609.JPG)
 
 
 #AND THAT’S IT FOR THIS PART.
