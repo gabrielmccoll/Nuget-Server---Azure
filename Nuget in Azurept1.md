@@ -9,26 +9,15 @@ My main reason for writing this blog, much like a lot of people’s is:
 Love.
  
  Okay it’s REALLY it was way more hassle than I expected for some bits of it so thought I’d write it down in case I forget about it.  Plus it’s a chance to automate some stuff.  
- 
-# Why so many parts?
-Part 1 is enough to get a Nuget Server up in Azure deployed through Azure Devops
-Part 2 is making it a bit better with a bit of variable substitution and also using Azure Devops to package and publish modules to your new build server. 
-Part 3 doesn't exist yet but it'll probably be pretty unnecessary. 
 
 
+# Why would I even want my own repository?
+Valid question. Maybe you're not even using source control. BOOOOO to you if so. Here's why I want mine:
 
- 
- 
-# On with the show
- Depending on how familiar you are with Visual Studio , Azure and Azure Devops, it might take 20 mins to an hour+ for the whole shebang.  If I didn’t love reading myself so much it could probably get to 5 minutes, woe is me for I am a showman.
- However long it takes, you will get there.   This part 1 in particular might not take you much time at all if you’ve got everything ready. Am splitting it into parts purely because if you’re not experienced with this sort of thing and don’t have the prereqs then this part takes waaaaaaay longer than if you do. 
- 
- ** This is not meant to be totally production ready. It’s a quick way to get going and try it out. It works. It will probably be fine for you but it doesn’t excuse lack of due diligence **
- 
- Big thanks to both Microsofts doc, 4sysops and Kevin Mar blog who gave me the leg up to get started.  
- I’m not going to go into why you might want your own repository rather than just stuffing your files into one big sock under your bed, this is just the technical part of getting it together.
- 
- 
+1. It lets me have two versions of the same module alive. I could be running a version 1.0.0 for prod and also have a 1.1.1 version for beta.  I can install-module -requiredversion and pick which one I want.
+2. The above means it's easier to share the work load with people if they're a bit nervous about getting started in powershell. They're just creating a new version down the same pipeline. They're not overwriting everything that came before. 
+3. It makes it easier to share modules with other people.  They just register the repo and then install-module from it. A standard Powershell pattern. 
+
 ### What you get in this post
 - Instructions and scripts on how to setup a free Nuget server in an Azure WebApp with a CICD pipeline in Azure Devops (formally VSTS)
 
@@ -38,8 +27,8 @@ Part 3 doesn't exist yet but it'll probably be pretty unnecessary.
 - [How to setup an Azure account](https://azure.microsoft.com/en-gb/free/)
 - [How to setup an Azure Devops account](https://docs.microsoft.com/en-us/azure/devops/organizations/accounts/create-organization?view=vsts)
 - [Visual Studio Community 2017 downloaded for you](https://visualstudio.microsoft.com/vs/)
-- How to add your new repo to your powershell sessions(that’s in Part 3)
-- How to push packages to your Server (that’s in Part 3)
+- How to add your new repo to your powershell sessions(that’s in Part 2)
+- How to push packages to your Server (that’s in Part 2)
 
 
 ### Requirements:
@@ -47,6 +36,28 @@ Part 3 doesn't exist yet but it'll probably be pretty unnecessary.
 - Azure Devops (Free)
 - Visual Studio 2017 (Free) 
 - A weak lemon drink. (small but worthwhile cost)
+
+ 
+# Why so many parts?
+Part 1 is enough to get a Nuget Server up in Azure deployed through Azure Devops
+Part 2 is making it a bit better with a bit of variable substitution and also using Azure Devops to package and publish modules to your new build server. 
+Part 3 doesn't exist yet but it'll probably be pretty unnecessary for most people. 
+
+
+ 
+ 
+# On with the show
+ Depending on how familiar you are with Visual Studio , Azure and Azure Devops, it might take 20 mins to an hour+ for the whole shebang.  If I didn’t love reading myself so much it could probably get to 5 minutes, woe is me for I am a showman.
+ However long it takes, you will get there.   This part 1 in particular might not take you much time at all if you’ve got everything ready. Am splitting it into parts purely because if you’re not experienced with this sort of thing and don’t have the prereqs then this part takes waaaaaaay longer than if you do. 
+ 
+ ** This is not meant to be totally production ready. It’s a quick way to get going and try it out. It works. It will probably be fine for you but it doesn’t excuse lack of due diligence to check this fits your needs. Especially security wise. **
+ 
+ Big thanks to both Microsofts doc, 4sysops and Kevin Mar blog who gave me the leg up to get started.  
+
+ I’m not going to go into why you might want your own repository rather than just stuffing your files into one big sock under your bed, this is just the technical part of getting it together. 
+ 
+ 
+
 
 
 ### High Level Step by Step:
@@ -59,7 +70,7 @@ Part 1
 6. Create Nuget Server in it
 7. Add an Api Key to Web.Config
 8. Create Build from Yaml
-9. Create Release pipeline > to  Azure Webapp with CI
+9. Create Release pipeline > to  Azure Webapp with CD
 
 
 
@@ -82,6 +93,8 @@ However, if you have another way you like to throw code, go wild.
 You’ll notice 2 lines are commented out. This might not be needed if you only have one subscription but I’ve thrown it in there in case you have more than one.  
 This is because the commands succeeding those, execute in the context of a subscription. If you’re in the wrong one, you make it in the wrong place 
 
+**The name of the AzureRMWebApp must be unique! ..so if the script fails it's because of that. I should probably stick a random number at the end of it**
+
 	$name = "NugetServer"
 	$location = "westeurope"
 	\# $subscriptionid = "?????"
@@ -91,13 +104,13 @@ This is because the commands succeeding those, execute in the context of a subsc
 	New-AzureRmWebApp -ResourceGroupName $name -Name "$name-WA" -Location $location -AppServicePlan $name
 	
 
-Boom, you now have a place to put your Nuget Server code. 
+Boom, you now have a place to put your Nuget Server. 
 
 ### 2. Create Service Principal, make Owner of Resource Group 
 
 There might be a better way to do this using Managed Instances but this’ll do for now.
 You’ll notice the repeated variable from the last script. Again, these could easily be a one shot script but It’s easier to explain if I break it down. At the end I might try to make one big beautiful script that just makes it all work. Vote in the comments! 
-Kidding! I don’t allow comments.  I just assume you all love me. 
+Kidding! I don’t allow comments.  I just assume it's all gravy. 
 
 
 This and all the other pieces of code are in Source Control (as they should be!) and you can get to them [here](https://github.com/gabrielmccoll/Nuget-Server---Azure).
@@ -234,7 +247,7 @@ You have 2 options.
 1. Have no API Key and just let anyone who knows the URL push whatever they want to your site.
 2. Make an API key up and use that to authenticate. 
 
-Since we're not complete buffoons we're going for number 2 of course. (I flunked my second year of bufoon university. Poor juggling.. but that's a tale for another time).
+Since we're not complete buffoons we're going for number 2 of course. (I flunked my second year of Bufoon University. Poor juggling.. but that's a tale for another time).
 
 Here's how you do it.
 Open up the Nuget Server project in Visual Studio 2017. 
@@ -253,10 +266,12 @@ That's us done in VS2017! Tick that off your bucket list.
 
 
 
-
 ### 8. Create your yaml build 
 
-This part is relatively new as I write this,  yaml builds were only available after the rebrand to Azure Devops from Visual Studio Team Services.  This means you can simply create a new file in your repo called Azure-Pipelines.yml and refer the build to it and boom. Everything is set.   
+This part is relatively new as I write this,  yaml builds were only available after the rebrand to Azure Devops from Visual Studio Team Services. 
+So this info is as fresh as my pop culture references.
+Yaml build means you can simply create a new file in your repo called Azure-Pipelines.yml and refer the build to it and boom. Everything is set.
+Yaml builds default to CI. 
 
 You’re still frightened though, coquettish, luckily here is one I created earlier !
 
@@ -319,6 +334,63 @@ See these here pictures I went and done you:
 
 ![](https://cloudconfusionsa.blob.core.windows.net/blogimages/Jekyll/NugetServer/IMG_0609.JPG)
 
+
+Then you want to queue your build and see it complete.
+It's important you do this before the next step of setting up the release otherwise you're going to be missing the ability to easily select the Drop. i.e. the zip file that the build produces.  
+
+
+### 9. Create Release pipeline > to  Azure Webapp with CD
+
+Well, we're nearly there, and all without losing a horse in a swap.
+Sadly, Yaml Release pipelines are not available yet so we're going to manually put this out. Here come tons of pictures: 
+
+Get yourself to Pipelines > Releases. 
+Likely empty.  Guess which button you press.
+
+![](https://cloudconfusionsa.blob.core.windows.net/blogimages/Jekyll/NugetServer/IMG_0610.JPG)
+
+
+For your template, Azure App Service deployment (remember we made that all the way back in act 1 - a stranger calls)
+You'll then get prompted to call your stage something. so like "Prod" or "Dev" or "UAT" or anything else like that
+
+![](https://cloudconfusionsa.blob.core.windows.net/blogimages/Jekyll/NugetServer/IMG_0611.JPG)
+
+Add artifact (this is the .zip Drop you created as part of the build)
+
+![](https://cloudconfusionsa.blob.core.windows.net/blogimages/Jekyll/NugetServer/IMG_0612.JPG)
+
+Build artifact (you created it as part of the build remember). Version just say latest. Copy the picture basically
+![](https://cloudconfusionsa.blob.core.windows.net/blogimages/Jekyll/NugetServer/IMG_0613.JPG)
+
+Enable Continuous Deployment filtered on master branch (you can mess with what branches you have later if you like)
+
+![](https://cloudconfusionsa.blob.core.windows.net/blogimages/Jekyll/NugetServer/IMG_0615.JPG)
+
+Now we click into the task to fill that template in (I called my stage "Deployment")
+
+![](https://cloudconfusionsa.blob.core.windows.net/blogimages/Jekyll/NugetServer/IMG_0616.JPG)
+
+Once you're there  we want to be following the next series of pics. 
+You use the service connection we created earlier
+![](https://cloudconfusionsa.blob.core.windows.net/blogimages/Jekyll/NugetServer/IMG_0617.JPG)
+
+![](https://cloudconfusionsa.blob.core.windows.net/blogimages/Jekyll/NugetServer/IMG_0618.JPG)
+
+Under "deploy Azure App Service" for the "package or Folder" click on the ... and then navigate to where your zip file dropped. If you don't see it, then make sure your build completed. If the Build didn't complete then you don't have an artifact to point to.
+
+![](https://cloudconfusionsa.blob.core.windows.net/blogimages/Jekyll/NugetServer/IMG_0619.JPG)
+
+![](https://cloudconfusionsa.blob.core.windows.net/blogimages/Jekyll/NugetServer/IMG_0621.JPG)
+
+
+That's all the settings you need. Now start the release. 
+
+
+![](https://cloudconfusionsa.blob.core.windows.net/blogimages/Jekyll/NugetServer/IMG_0622.JPG)
+
+
+Once it completes, you should have a working Nuget Server with CI CD!
+![](https://cloudconfusionsa.blob.core.windows.net/blogimages/Jekyll/NugetServer/IMG_0623.JPG)
 
 #AND THAT’S IT FOR THIS PART.
 The stage is set... a hush falls over the crowd as they drink their weak lemon drinks. 
